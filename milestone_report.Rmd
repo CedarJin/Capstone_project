@@ -1,0 +1,325 @@
+---
+title: "Capstone_project_milestone_report"
+author: "Yanshan Jin"
+date: "2024-10-20"
+output: html_document
+---
+The goal of this project is just to display that you've gotten used to working with the data and that you are on track to create your prediction algorithm. Please submit a report on R Pubs that explains your exploratory analysis and your goals for the eventual app and algorithm. This document should be concise and explain only the major features of the data you have identified and briefly summarize your plans for creating the prediction algorithm and Shiny app in a way that would be understandable to a non-data scientist manager. You should make use of tables and plots to illustrate important summaries of the data set. 
+
+The motivation for this project is to: 
+
+1. Demonstrate that you've downloaded the data and have successfully loaded it in.
+2. Create a basic report of summary statistics about the data sets.
+3. Report any interesting findings that you amassed so far.
+4. Get feedback on your plans for creating a prediction algorithm and Shiny app. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(here,
+               DT,
+               tm,
+               SnowballC,
+               tidyverse,
+               wordcloud2,
+               wordcloud,
+               ggplot2,
+               tidytext,
+               quanteda,
+               stringr,
+               htmlwidgets# load the required packages
+               )
+```
+
+## The basic file information
+
+
+
+```{r basic information, include=FALSE}
+get_size <- function(filename){
+    filepath = here("final","en_US",filename)
+    file_size = file.info(filepath)$size
+    file_size_formatted = paste0(round(file_size / (1024^2),2), " MB")
+    return(file_size_formatted)
+}
+
+get_nline <- function(filename){
+     filepath = here("final","en_US",filename)
+     con = file(filepath,"r")
+     line_count = length(readLines(con,warn = FALSE))
+     close(con)
+     return(line_count)
+}
+
+get_nchar <- function(filename){
+    filepath = here("final","en_US",filename)
+     con = file(filepath,"r")
+     all_lines = readLines(con, warn = FALSE)
+     close(con)
+     char_count = sum(nchar(all_lines)) 
+     return(char_count)
+}
+
+get_nword <- function(filename){
+    filename = "en_US.twitter.txt"
+    filepath = here("final","en_US",filename)
+     con = file(filepath,"r")
+     all_lines = readLines(con, warn = FALSE)
+     close(con)
+     word = str_split(all_lines,"\\s+")
+     word_count = sum(sapply(word, function(x){length(x)}))
+     return(word_count)
+}
+
+
+```
+
+```{r}
+filenames <- c("en_US.blogs.txt","en_US.news.txt","en_US.twitter.txt")
+summary_table <- data.frame()
+for (filename in filenames) {
+    File_size = get_size(filename)
+    Line_count = get_nline(filename)
+    Char_count = get_nchar(filename)
+    Word_count = get_nword(filename)
+    summary_table = rbind(summary_table, data.frame(Source = filename, File_size = File_size, Line_count = Line_count, Char_count = Char_count, Word_count = Word_count))
+}
+datatable(summary_table)
+```
+
+## Text preprocessing
+
+This step involves cleaning and preparing the text data to make it easier for machines to process. Key preprocessing tasks include:
+
+**Tokenization**: Splitting text into smaller units, like words, phrases, or sentences. For example, the sentence "I love NLP" can be tokenized into ["I", "love", "NLP"].
+**Lowercasing**: Converting all text to lowercase to reduce case sensitivity.
+**Removing Stopwords**: Filtering out common words like "and," "the," or "is" that do not carry much meaning.
+**Stemming/Lemmatization**: Reducing words to their root forms. Stemming involves chopping off word endings, while lemmatization converts words to their base forms (e.g., "running" becomes "run").
+**Punctuation Removal**: Stripping out punctuation symbols.
+**Handling Special Characters**: Removing or handling special symbols like hashtags, URLs, and emojis in social media text.
+
+
+```{r sampling}
+# sample from the original text
+set.seed(1)
+sample <- list()
+for (filename in filenames) {
+  #  filename = "en_US.twitter.txt"
+    source = str_extract(filename, "(?<=\\.)(.*?)(?=\\.)")
+    sample_size = round(summary_table$Line_count[summary_table$Source==filename]*0.01)
+    
+    filepath = here("final","en_US",filename)
+     con = file(filepath,"r")
+     all_lines = readLines(con, warn = FALSE)
+     close(con)
+    
+     sample[[source]] = sample(all_lines, sample_size)
+}
+
+```
+
+```{r processing, warning=FALSE}
+corpus <- list()
+for (i in names(sample)) {
+    corpus[[i]] <- Corpus(VectorSource(sample[[i]]))
+}
+
+# lowercasing
+for (i in names(corpus)) {
+    corpus[[i]] <- tm_map(corpus[[i]],content_transformer(tolower))
+}
+
+# remove punctuation
+for (i in names(corpus)) {
+    corpus[[i]] <- tm_map(corpus[[i]],removePunctuation)
+}
+
+
+for (i in names(corpus)) {
+    remove_special <- content_transformer(function(x) gsub("(http\\S+|\\W|\\d+|_)", " ", x))
+    corpus[[i]] <- tm_map(corpus[[i]],remove_special) # removing special characters, URLs, and extra spaces
+    corpus[[i]] <- tm_map(corpus[[i]], stripWhitespace)
+    corpus[[i]] <- tm_map(corpus[[i]], removeWords, stopwords("en")) # Removing stopwords (common words like "and," "the," etc.)
+     corpus[[i]] <- tm_map(corpus[[i]], stemDocument) # Stemming: Reduce words to their root form
+     
+}
+
+
+```
+
+```{r}
+# tokenization
+tokenize_text <- function(doc) {
+  unlist(strsplit(as.character(doc), "\\s+"))
+}
+
+tokens <- list()
+for (i in names(corpus)) {
+    tokens[[i]] <- lapply(corpus[[i]], tokenize_text)
+}
+
+tokens_flat <- list()
+for (i in names(tokens)) {
+    tokens_flat[[i]] <- unlist(tokens[[i]])
+}
+
+for (i in names(tokens_flat)) {
+    # Print a summary of the preprocessed tokens
+print(paste0("Number of unique tokens for ", i ," is ", length(unique(tokens_flat[[i]]))))
+head(tokens_flat[[i]], 20)  # Print the first 20 tokens as an example
+}
+
+#saveRDS(tokens_flat, here("final","en_US","sample_tokens_clean.rds"))
+```
+## Text characteristics
+
+In this step, the most frequent words and word-pairs/tripples will be identified and visualized using barplot and word cloud.
+
+```{r}
+tokens_df <- list() # convert the vector to df
+for (i in names(tokens_flat)) {
+    tokens_df[[i]] <- data.frame(word = tokens_flat[[i]], stringsAsFactors = FALSE)
+}
+
+# 1. Most Frequent Words
+# Count the frequency of each word
+unitoken_count <- list()
+for (i in names(tokens_df)) {
+    unitoken_count[[i]] <- tokens_df[[i]] %>%
+    group_by(word) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+}
+
+# Visualize the top 20 words with a bar plot
+top_words <- list()
+top_words_barplot <- list()
+for (i in names(unitoken_count)) {
+    top_words[[i]] <- unitoken_count[[i]] %>% top_n(20, count)
+    top_words_barplot[[i]] <- ggplot(top_words[[i]], aes(x = reorder(word, count), y = count)) +
+        geom_bar(stat = "identity") +
+        coord_flip() +
+        labs(title = paste0("Top 20 Most Frequent Words for ",i," dataset."), x = "Words", y = "Count")
+}
+
+top_words_barplot[[1]]
+top_words_barplot[[2]]
+top_words_barplot[[3]]
+```
+```{r warning=FALSE}
+    wordcloud2(unitoken_count[["blogs"]], size = 0.7, color = 'random-light', backgroundColor = "black")
+```
+```{r warning=FALSE}
+
+    # Create a word cloud for visualizing word frequency
+    wordcloud2(unitoken_count[["news"]], size = 0.7, color = 'random-light', backgroundColor = "black")
+
+```
+
+```{r warning=FALSE}
+    # Create a word cloud for visualizing word frequency
+    wordcloud2(unitoken_count[["twitter"]], size = 0.7, color = 'random-light', backgroundColor = "black")
+```
+
+```{r}
+# 2. Most Frequent Word Pairs (Bigrams) and Triples (Trigrams)
+# Create bigrams and trigrams using tidytext
+tokens_df_bigram <- list()
+for (i in names(tokens_df)) {
+    tokens_df_bigram[[i]] <- tokens_df[[i]] %>%
+  mutate(next_word = lead(word)) %>%
+  filter(!is.na(next_word)) %>%
+  unite(bigram, word, next_word, sep = " ")
+}
+
+bigram_counts <- list()
+for (i in names(tokens_df_bigram)) {
+    bigram_counts[[i]] <- tokens_df_bigram[[i]] %>%
+  group_by(bigram) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+}
+
+top_bigrams <- list()
+for (i in names(bigram_counts)) {
+    top_bigrams[[i]] <- bigram_counts[[i]] %>% top_n(20, count)
+}
+# Visualize the top 10 bigrams with a bar plot
+top_bigrams_plot <- list()
+for (i in names(top_bigrams)) {
+  top_bigrams_plot[[i]] <- ggplot(top_bigrams[[i]], aes(x = reorder(bigram, count), y = count)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = paste0("Top 20 Most Frequent Bigrams For ",i," Dataset."), x = "Bigrams", y = "Count") 
+}
+
+top_bigrams_plot[[1]]
+top_bigrams_plot[[2]]
+top_bigrams_plot[[3]]
+```
+```{r}
+tokens_df_trigram <- list()
+for (i in names(tokens_df)) {
+tokens_df_trigram[[i]] <- tokens_df[[i]] %>%
+  mutate(
+    next_word1 = lead(word, 1),
+    next_word2 = lead(word, 2)
+  ) %>%
+  filter(!is.na(next_word1), !is.na(next_word2)) %>%
+  unite(trigram, word, next_word1, next_word2, sep = " ")
+}
+
+trigram_counts <- list()
+for (i in names(tokens_df_trigram)) {
+    trigram_counts[[i]] <- tokens_df_trigram[[i]] %>%
+  group_by(trigram) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+}
+
+top_trigrams <- list()
+for (i in names(trigram_counts)) {
+    top_trigrams[[i]] <- trigram_counts[[i]] %>% top_n(20, count)
+}
+# Visualize the top 10 bigrams with a bar plot
+top_trigrams_plot <- list()
+for (i in names(top_trigrams)) {
+  top_trigrams_plot[[i]] <- ggplot(top_trigrams[[i]], aes(x = reorder(trigram, count), y = count)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = paste0("Top 20 Most Frequent Trigrams For ",i," Dataset."), x = "trigrams", y = "Count") 
+}
+
+top_trigrams_plot[[1]]
+top_trigrams_plot[[2]]
+top_trigrams_plot[[3]]
+
+```
+
+## My plan for the prediction algorithm and shiny app
+
+### (1) Text processing for machine learning
+
+Once the text is cleaned, it needs to be transformed into a format that a machine learning model can process. Common representations include:
+
+**Bag of Words (BoW)**: Represents text as a collection of words without considering word order. It’s often used with a frequency count of each word.
+**Term Frequency-Inverse Document Frequency (TF-IDF)**: A weighted representation that highlights important words in a document by considering how frequently they appear across multiple documents.
+**Word Embeddings**: Dense vector representations that capture semantic meaning and context of words (e.g., Word2Vec, GloVe, BERT). These models allow words with similar meanings to have similar vector representations.
+
+### (2) Language modeling
+
+Language models are used to predict the next word in a sequence or estimate the probability of a sequence of words. This can involve:
+
+**N-grams**: Models that predict the next word based on the previous words in a sequence.
+**Recurrent Neural Networks (RNNs)**: Deep learning models that consider sequences of words over time.
+
+### (3) Evaluation and optimization
+
+The model's performance is evaluated based on the desired outcome:
+
+**Accuracy**: How often the model's predictions are correct.
+**Precision, Recall, and F1 Score**: Metrics used to evaluate the performance of classification tasks.
+**Perplexity**: A measure often used for language models to indicate how well the model predicts the next word in a sequence.
+
+### (4) Deployment
+
+Integrate the processed model into shinyapp and generate slides to introduce the app.
