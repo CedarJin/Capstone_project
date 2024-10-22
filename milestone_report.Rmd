@@ -206,18 +206,54 @@ top_words_barplot[[2]]
 top_words_barplot[[3]]
 ```
 ```{r warning=FALSE}
-    wordcloud2(unitoken_count[["blogs"]], size = 0.7, color = 'random-light', backgroundColor = "black")
+set.seed(1234)  # For reproducibility
+
+wordcloud(words = unitoken_count[["blogs"]]$word,
+          freq = unitoken_count[["blogs"]]$count,
+          min.freq = 1,
+          max.words = 200,
+          random.order = FALSE,
+          rot.per = 0.35,
+          scale = c(4, 0.5),
+          colors = brewer.pal(8, "Dark2"))
+
+mtext("Blogs Word Cloud", side = 2, line = 1, cex = 2, col = "black")
+#    wordcloud2(unitoken_count[["blogs"]], size = 0.7, color = 'random-light', backgroundColor = "black")
 ```
 ```{r warning=FALSE}
+set.seed(1234)  # For reproducibility
 
+
+wordcloud(words = unitoken_count[["twitter"]]$word,
+          freq = unitoken_count[["twitter"]]$count,
+          min.freq = 1,
+          max.words = 200,
+          random.order = FALSE,
+          rot.per = 0.35,
+          scale = c(4, 0.5),
+          colors = brewer.pal(8, "Dark2"))
+
+mtext("Twitter Word Cloud", side = 2, line = 1, cex = 2, col = "black")
     # Create a word cloud for visualizing word frequency
-    wordcloud2(unitoken_count[["news"]], size = 0.7, color = 'random-light', backgroundColor = "black")
+ #   wordcloud2(unitoken_count[["news"]], size = 0.7, color = 'random-light', backgroundColor = "black")
 
 ```
 
 ```{r warning=FALSE}
+set.seed(1234)  # For reproducibility
+
+wordcloud(words = unitoken_count[["news"]]$word,
+          freq = unitoken_count[["news"]]$count,
+          min.freq = 1,
+          max.words = 200,
+          random.order = FALSE,
+          rot.per = 0.35,
+          scale = c(4, 0.5),
+          colors = brewer.pal(8, "Dark2"))
+
+mtext("News Word Cloud", side = 2, line = 1, cex = 2, col = "black")
     # Create a word cloud for visualizing word frequency
-    wordcloud2(unitoken_count[["twitter"]], size = 0.7, color = 'random-light', backgroundColor = "black")
+  #  wordcloud2(unitoken_count[["twitter"]], size = 0.7, color = 'random-light', backgroundColor = "black")
 ```
 
 ```{r}
