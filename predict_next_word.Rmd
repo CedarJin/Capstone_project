@@ -1,0 +1,29 @@
+---
+title: "data product presentation"
+author: "Cedar Jin"
+date: "2024-10-24"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Description of the algorithm
+
+I used a prediction model based on the frequency of the word in the sampled dataset to predict the next word.
+
+## App description
+
+The user simply inputs the text in the left side textbox, the main panel on the right would show the most frequent 20 words followed by this text based on the prediction model.
+
+## App link
+
+https://cedarjys001.shinyapps.io/Next_word_prediction/
+
+## Github link
+
+https://github.com/CedarJin/Capstone_project
+
+
+## Thanks!
